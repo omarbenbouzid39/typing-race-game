@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سباق الكتابة السريعة</title>
+    <style>
+        :root {
+            --primary-color: #ffb703;
+            --bg-dark: #1a2639;
+            --text-light: #ffffff;
+            --text-highlight: #ffb703;
+            --success: #4caf50;
+            --error: #f44336;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        
+        .container {
+            width: 90%;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .room-info {
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .room-code {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--text-highlight);
+        }
+        
+        .players-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        
+        .player {
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 20px;
+            padding: 8px 15px;
+            min-width: 80px;
+        }
+        
+        .current-player {
+            background-color: rgba(255, 183, 3, 0.2);
+            border: 1px solid var(--text-highlight);
+        }
+        
+        .race-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .progress-indicator {
+            font-weight: bold;
+        }
+        
+        .timer {
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px 15px;
+            border-radius: 50%;
+            position: relative;
+        }
+        
+        .timer-icon {
+            width: 18px;
+            height: 18px;
+            margin-right: 5px;
+            vertical-align: middle;
+            fill: var(--text-light);
+        }
+        
+        .text-prompt {
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 18px;
+            line-height: 1.6;
+            text-align: center;
+        }
+        
+        .text-highlight {
+            color: var(--text-highlight);
+        }
+        
+        .typing-area {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        .typing-input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 25px;
+            border: none;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--text-light);
+            font-size: 16px;
+            box-sizing: border-box;
+            direction: rtl;
+        }
+        
+        .typing-input:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px var(--text-highlight);
+        }
+        
+        .send-btn {
+            position: absolute;
+            left: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-light);
+            cursor: pointer;
+        }
+        
+        .race-track {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        .player-track {
+            position: relative;
+            height: 40px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 20px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to left, #4caf50, #8bc34a);
+            border-radius: 20px;
+            transition: width 0.5s;
+        }
+        
+        .car-icon {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 30px;
+            height: 30px;
+            z-index: 1;
+            transition: right 0.5s;
+        }
+        
+        .player-info {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+        }
+        
+        .player-name {
+            font-weight: bold;
+        }
+        
+        .player-rank {
+            color: var(--text-highlight);
+        }
+        
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        
+        .modal.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        .modal-content {
+            background-color: var(--bg-dark);
+            border-radius: 10px;
+            padding: 30px;
+            max-width: 90%;
+            width: 400px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        .modal-content h2 {
+            color: var(--text-highlight);
+            margin-top: 0;
+        }
+        
+        .modal-btns {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border-radius: 20px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background-color: var(--text-highlight);
+            color: var(--bg-dark);
+        }
+        
+        .btn-primary:hover {
+            background-color: #e6a503;
+        }
+        
+        .btn-secondary {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--text-light);
+        }
+        
+        .btn-secondary:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .username-input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--text-light);
+            font-size: 16px;
+            margin-top: 15px;
+            box-sizing: border-box;
+            direction: rtl;
+        }
+        
+        .username-input:focus {
+            outline: none;
+            border-color: var(--text-highlight);
+        }
+        
+        .disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        
+        /* Loading spinner */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid var(--text-highlight);
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 15px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- صفحة اللعبة الرئيسية -->
+    <div class="container">
+        <div class="header">
+            <h1>سباق الكتابة السريعة</h1>
+        </div>
+        
+        <div class="room-info">
+            <div>غرفة السباق: <span class="room-code" id="roomCode">XXXX</span></div>
+            <div id="shareLink">شارك الكود أو الرابط مع أصدقائك للدخول إلى نفس الغرفة:</div>
+        </div>
+        
+        <div class="players-container" id="playersContainer">
+            <!-- اللاعبين سيتم إضافتهم ديناميكيًا هنا -->
+        </div>
+        
+        <div class="race-status">
+            <div class="progress-indicator" id="progressIndicator">1/3</div>
+            <div class="race-status-text" id="raceStatusText">السباق جارٍ!</div>
+            <div class="timer">
+                <span id="timer">30</span>
+                <svg class="timer-icon" viewBox="0 0 24 24">
+                    <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z" fill="currentColor"></path>
+                </svg>
+            </div>
+        </div>
+        
+       <div id="textPrompt" class="text-prompt">
+    <div id="text-display"></div>
+</div>
+
+        
+        <div class="typing-area">
+            <input type="text" class="typing-input" id="typingInput" placeholder="اكتب هنا..." dir="rtl">
+            <button class="send-btn" id="sendBtn">
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                    <path d="M2,21L23,12L2,3V10L17,12L2,14V21Z" fill="currentColor"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <div class="race-track" id="raceTrack">
+            <!-- مسارات السباق ستضاف ديناميكيًا هنا -->
+        </div>
+    </div>
+    
+    <!-- نافذة تسجيل الدخول -->
+    <div class="modal active" id="loginModal">
+        <div class="modal-content">
+            <h2>انضم إلى سباق الكتابة</h2>
+            <p>أدخل اسمك للدخول إلى السباق</p>
+            <input type="text" class="username-input" id="usernameInput" placeholder="اسم المستخدم" maxlength="15">
+            <div class="modal-btns">
+                <button class="btn btn-secondary" id="joinRandomBtn">غرفة عشوائية</button>
+                <button class="btn btn-primary" id="createRoomBtn">إنشاء غرفة</button>
+            </div>
+            <div class="modal-btns" style="margin-top: 10px;">
+                <input type="text" class="username-input" id="roomInput" placeholder="رمز الغرفة" style="width: 150px; margin: 0;">
+                <button class="btn btn-secondary" id="joinRoomBtn">انضم إلى غرفة</button>
+            </div>
+            <div class="spinner hidden" id="loginSpinner"></div>
+        </div>
+    </div>
+    
+    <!-- نافذة انتظار بدء السباق -->
+    <div class="modal" id="waitingModal">
+        <div class="modal-content">
+            <h2>في انتظار اللاعبين</h2>
+            <p>رمز الغرفة: <span class="room-code" id="waitingRoomCode">XXXX</span></p>
+            <p>شارك هذا الرمز مع أصدقائك للانضمام</p>
+            <div class="spinner" id="waitingSpinner"></div>
+            <div class="players-container" id="waitingPlayers">
+                <!-- اللاعبين في الانتظار -->
+            </div>
+            <div class="modal-btns">
+                <button class="btn btn-secondary" id="leaveRoomBtn">مغادرة</button>
+                <button class="btn btn-primary" id="startRaceBtn">بدء السباق</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- نافذة نتائج السباق -->
+    <div class="modal" id="resultsModal">
+        <div class="modal-content">
+            <h2>نتائج السباق</h2>
+            <div id="resultsContainer">
+                <!-- النتائج ستضاف هنا -->
+            </div>
+            <div class="modal-btns">
+                <button class="btn btn-secondary" id="quitBtn">خروج</button>
+                <button class="btn btn-primary" id="playAgainBtn">لعب مرة أخرى</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // بيانات محاكاة للسباق
+        const sampleTexts = [
+            "أحد الأيام قرر سامي أن يبدأ تعلم البرمجة. جلس أمام الحاسوب وأخذ يدرس... بعد عدة ساعات من المحاولة، تمكن من كتابة أول برنامج بسيط له. وشعر بسعادة كبيرة عندما رأى النتيجة تظهر على الشاشة.",
+            "البرمجة لغة العصر الحديث. من خلالها نستطيع تحويل الأفكار إلى واقع ملموس. كل مبرمج ناجح بدأ من الصفر، وبالمثابرة والتعلم المستمر يمكن لأي شخص أن يتقن هذا المجال.",
+            "التكنولوجيا تغير العالم بشكل متسارع. أصبحت جزءاً لا يتجزأ من حياتنا اليومية، من الهواتف الذكية إلى الذكاء الاصطناعي. من يتعلم لغات البرمجة اليوم يضمن لنفسه مكاناً في سوق العمل المستقبلي."
+        ];
+        
+        // بيانات اللاعبين والغرفة
+        let gameState = {
+            currentPlayer: null,
+            players: [],
+            roomCode: generateRoomCode(),
+            currentTextIndex: 0,
+            timer: 30,
+            raceStarted: false,
+            raceFinished: false,
+            countdownInterval: null
+        };
+        
+        // تعريف العناصر
+        const elements = {
+            roomCode: document.getElementById('roomCode'),
+            waitingRoomCode: document.getElementById('waitingRoomCode'),
+            playersContainer: document.getElementById('playersContainer'),
+            waitingPlayers: document.getElementById('waitingPlayers'),
+            textPrompt: document.getElementById('textPrompt'),
+            typingInput: document.getElementById('typingInput'),
+            sendBtn: document.getElementById('sendBtn'),
+            raceTrack: document.getElementById('raceTrack'),
+            timer: document.getElementById('timer'),
+            progressIndicator: document.getElementById('progressIndicator'),
+            raceStatusText: document.getElementById('raceStatusText'),
+            
+            // النوافذ المنبثقة
+            loginModal: document.getElementById('loginModal'),
+            waitingModal: document.getElementById('waitingModal'),
+            resultsModal: document.getElementById('resultsModal'),
+            
+            // أزرار
+            usernameInput: document.getElementById('usernameInput'),
+            roomInput: document.getElementById('roomInput'),
+            createRoomBtn: document.getElementById('createRoomBtn'),
+            joinRandomBtn: document.getElementById('joinRandomBtn'),
+            joinRoomBtn: document.getElementById('joinRoomBtn'),
+            startRaceBtn: document.getElementById('startRaceBtn'),
+            leaveRoomBtn: document.getElementById('leaveRoomBtn'),
+            quitBtn: document.getElementById('quitBtn'),
+            playAgainBtn: document.getElementById('playAgainBtn'),
+            
+            // إضافي
+            loginSpinner: document.getElementById('loginSpinner'),
+            waitingSpinner: document.getElementById('waitingSpinner'),
+            resultsContainer: document.getElementById('resultsContainer')
+        };
+        
+        // تهيئة الصفحة عند التحميل
+        window.onload = function() {
+            // تعيين معرف الغرفة
+            elements.roomCode.textContent = gameState.roomCode;
+            elements.waitingRoomCode.textContent = gameState.roomCode;
+            
+            // إضافة المستمعين للأحداث
+            setupEventListeners();
+            
+            // تعطيل حقل الإدخال في البداية
+            elements.typingInput.disabled = true;
+        };
+        
+        // إعداد المستمعين للأحداث
+        function setupEventListeners() {
+            // أزرار تسجيل الدخول
+            elements.createRoomBtn.addEventListener('click', createRoom);
+            elements.joinRandomBtn.addEventListener('click', joinRandomRoom);
+            elements.joinRoomBtn.addEventListener('click', joinSpecificRoom);
+            
+            // أزرار الانتظار
+            elements.startRaceBtn.addEventListener('click', startRace);
+            elements.leaveRoomBtn.addEventListener('click', leaveRoom);
+            
+            // أزرار النتائج
+            elements.quitBtn.addEventListener('click', quitGame);
+            elements.playAgainBtn.addEventListener('click', resetAndPlayAgain);
+            
+            // حقل الكتابة وزر الإرسال
+            elements.typingInput.addEventListener('input', handleTyping);
+            elements.sendBtn.addEventListener('click', submitText);
+            elements.typingInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    submitText();
+                }
+            });
+        }
+        
+        // توليد رمز غرفة عشوائي
+        function generateRoomCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 4; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+        
+        // إنشاء غرفة جديدة
+        function createRoom() {
+            const username = elements.usernameInput.value.trim();
+            if (!username) {
+                alert('الرجاء إدخال اسم المستخدم');
+                return;
+            }
+            
+            // محاكاة الاتصال بالخادم
+            elements.loginSpinner.classList.remove('hidden');
+            elements.createRoomBtn.disabled = true;
+            elements.joinRandomBtn.disabled = true;
+            elements.joinRoomBtn.disabled = true;
+            
+            setTimeout(() => {
+                // إضافة اللاعب الحالي
+                gameState.currentPlayer = {
+                    id: generateUUID(),
+                    name: username,
+                    progress: 0,
+                    isCurrentUser: true,
+                    finishTime: null,
+                    wpm: 0
+                };
+                
+                gameState.players.push(gameState.currentPlayer);
+                
+                // محاكاة إضافة لاعب آخر للاختبار
+                gameState.players.push({
+                    id: generateUUID(),
+                    name: 'لاعب آلي',
+                    progress: 0,
+                    isCurrentUser: false,
+                    finishTime: null,
+                    wpm: 0,
+                    isBot: true
+                });
+                
+                updatePlayersList();
+                toggleModal(elements.loginModal, false);
+                toggleModal(elements.waitingModal, true);
+                elements.loginSpinner.classList.add('hidden');
+            }, 1000);
+        }
+        
+        // الانضمام إلى غرفة عشوائية
+        function joinRandomRoom() {
+            const username = elements.usernameInput.value.trim();
+            if (!username) {
+                alert('الرجاء إدخال اسم المستخدم');
+                return;
+            }
+            
+            // محاكاة الاتصال بالخادم للبحث عن غرفة
+            elements.loginSpinner.classList.remove('hidden');
+            elements.createRoomBtn.disabled = true;
+            elements.joinRandomBtn.disabled = true;
+            elements.joinRoomBtn.disabled = true;
+            
+            setTimeout(() => {
+                // إنشاء غرفة جديدة (في النسخة الحقيقية سيتم البحث عن غرفة)
+                gameState.roomCode = generateRoomCode();
+                elements.roomCode.textContent = gameState.roomCode;
+                elements.waitingRoomCode.textContent = gameState.roomCode;
+                
+                // إضافة اللاعب الحالي
+                gameState.currentPlayer = {
+                    id: generateUUID(),
+                    name: username,
+                    progress: 0,
+                    isCurrentUser: true,
+                    finishTime: null,
+                    wpm: 0
+                };
+                
+                gameState.players.push(gameState.currentPlayer);
+                
+                // محاكاة إضافة لاعبين آخرين للاختبار
+                gameState.players.push({
+                    id: generateUUID(),
+                    name: 'لاعب آلي 1',
+                    progress: 0,
+                    isCurrentUser: false,
+                    finishTime: null,
+                    wpm: 0,
+                    isBot: true
+                });
+                
+                gameState.players.push({
+                    id: generateUUID(),
+                    name: 'لاعب آلي 2',
+                    progress: 0,
+                    isCurrentUser: false,
+                    finishTime: null,
+                    wpm: 0,
+                    isBot: true
+                });
+                
+                updatePlayersList();
+                toggleModal(elements.loginModal, false);
+                toggleModal(elements.waitingModal, true);
+                elements.loginSpinner.classList.add('hidden');
+            }, 1000);
+        }
+        
+        // الانضمام إلى غرفة محددة
+        function joinSpecificRoom() {
+            const username = elements.usernameInput.value.trim();
+            const roomCode = elements.roomInput.value.trim();
+            
+            if (!username) {
+                alert('الرجاء إدخال اسم المستخدم');
+                return;
+            }
+            
+            if (!roomCode) {
+                alert('الرجاء إدخال رمز الغرفة');
+                return;
+            }
+            
+            // محاكاة الاتصال بالخادم
+            elements.loginSpinner.classList.remove('hidden');
+            elements.createRoomBtn.disabled = true;
+            elements.joinRandomBtn.disabled = true;
+            elements.joinRoomBtn.disabled = true;
+            
+            setTimeout(() => {
+                // في النسخة الحقيقية سيتم التحقق من وجود الغرفة
+                gameState.roomCode = roomCode;
+                elements.roomCode.textContent = gameState.roomCode;
+                elements.waitingRoomCode.textContent = gameState.roomCode;
+                
+                // إضافة اللاعب الحالي
+                gameState.currentPlayer = {
+                    id: generateUUID(),
+                    name: username,
+                    progress: 0,
+                    isCurrentUser: true,
+                    finishTime: null,
+                    wpm: 0
+                };
+                
+                gameState.players.push(gameState.currentPlayer);
+                
+                // محاكاة وجود لاعبين آخرين في الغرفة
+                gameState.players.push({
+                    id: generateUUID(),
+                    name: 'أحمد',
+                    progress: 0,
+                    isCurrentUser: false,
+                    finishTime: null,
+                    wpm: 0,
+                    isBot: true
+                });
+                
+                gameState.players.push({
+                    id: generateUUID(),
+                    name: 'سارة',
+                    progress: 0,
+                    isCurrentUser: false,
+                    finishTime: null,
+                    wpm: 0,
+                    isBot: true
+                });
+                
+                updatePlayersList();
+                toggleModal(elements.loginModal, false);
+                toggleModal(elements.waitingModal, true);
+                elements.loginSpinner.classList.add('hidden');
+            }, 1000);
+        }
+        
+        // بدء السباق
+        function startRace() {
+            toggleModal(elements.waitingModal, false);
+            function renderColoredText(text) {
+    const display = document.getElementById('text-display');
+    display.innerHTML = text
+        .split('')
+        .map((char, index) => `<span id="char-${index}">${char}</span>`)
+        .join('');
+}
+
+            // تعيين النص الحالي
+            const currentText = sampleTexts[gameState.currentTextIndex];
+            renderColoredText(currentText);
+
+            // تحديث مؤشر التقدم
+            elements.progressIndicator.textContent = `${gameState.currentTextIndex + 1}/${sampleTexts.length}`;
+            
+            // تمكين حقل الإدخال
+            elements.typingInput.disabled = false;
+            elements.typingInput.focus();
+            
+            // إنشاء مسارات السباق
+            createRaceTracks();
+            
+            // بدء العد التنازلي
+            startCountdown();
+            
+            // محاكاة تقدم اللاعبين الآليين
+            gameState.players.forEach(player => {
+                if (player.isBot) {
+                    simulateBotProgress(player);
+                }
+            });
+            
+            gameState.raceStarted = true;
+        }
+        
+        // إنشاء مسارات السباق
+        function createRaceTracks() {
+            elements.raceTrack.innerHTML = '';
+            
+            gameState.players.forEach((player, index) => {
+                const trackElement = document.createElement('div');
+                trackElement.className = 'player-track';
+                trackElement.id = `track-${player.id}`;
+                
+                const progressBar = document.createElement('div');
+                progressBar.className = 'progress-bar';
+                progressBar.style.width = '0%';
+                
+                const carIcon = document.createElement('div');
+                carIcon.className = 'car-icon';
+                carIcon.id = `car-${player.id}`;
+                carIcon.style.right = '0%';
+                carIcon.innerHTML = `<svg viewBox="0 0 24 24"><path d="M18,10H6L3,6H21L18,10M20,12C19.4,12 19,12.4 19,13S19.4,14 20,14 21,13.6 21,13 20.6,12 20,12M6,12C5.4,12 5,12.4 5,13S5.4,14 6,14 7,13.6 7,13 6.6,12 6,12M22,3V5H2V3H22M17,18L18,17H14.8C14.9,16.7 15,16.3 15,16A3,3 0 0,0 12,13A3,3 0 0,0 9,16C9,16.3 9.1,16.7 9.2,17H6L7,18H17Z" fill="${player.isCurrentUser ? '#ffb703' : '#ffffff'}"/></svg>`;
+                
+                trackElement.appendChild(progressBar);
+                trackElement.appendChild(carIcon);
+                
+                const playerInfo = document.createElement('div');
+                playerInfo.className = 'player-info';
+                
+                const playerName = document.createElement('div');
+                playerName.className = 'player-name';
+                playerName.textContent = player.name;
+                
+                const playerRank = document.createElement('div');
+                playerRank.className = 'player-rank';
+                playerRank.id = `rank-${player.id}`;
+                playerRank.textContent = `#${index + 1}`;
+                
+                playerInfo.appendChild(playerName);
+                playerInfo.appendChild(playerRank);
+                
+                const trackContainer = document.createElement('div');
+                trackContainer.appendChild(trackElement);
+                trackContainer.appendChild(playerInfo);
+                
+                elements.raceTrack.appendChild(trackContainer);
+                
+                // تحديث التقدم الأولي إذا كان موجودًا
+                updatePlayerProgress(player);
+            });
+        }
+        
+        // بدء العد التنازلي
+        function startCountdown() {
+            gameState.timer = 30;
+            elements.timer.textContent = gameState.timer;
+            
+            gameState.countdownInterval = setInterval(() => {
+                gameState.timer--;
+                elements.timer.textContent = gameState.timer;
+                
+                if (gameState.timer <= 0) {
+                    clearInterval(gameState.countdownInterval);
+                    handleTimeUp();
+                }
+            }, 1000);
+        }
+        
+        // معالجة انتهاء الوقت
+        function handleTimeUp() {
+            if (!gameState.raceFinished) {
+                elements.typingInput.disabled = true;
+                elements.raceStatusText.textContent = 'انتهى الوقت!';
+                
+                setTimeout(() => {
+                    if (gameState.currentTextIndex < sampleTexts.length - 1) {
+                        moveToNextText();
+                    } else {
+                        finishRace();
+                    }
+                }, 2000);
+            }
+        }
+        
+        // محاكاة تقدم اللاعبين الآليين
+        function simulateBotProgress(bot) {
+            const currentText = sampleTexts[gameState.currentTextIndex];
+            const textLength = currentText.length;
+            
+            // تحديد سرعة اللاعب الآلي (عشوائية بين الحدود)
+            const minSpeed = 30; // كلمة في الدقيقة
+            const maxSpeed = 70; // كلمة في الدقيقة
+            const botSpeed = minSpeed + Math.random() * (maxSpeed - minSpeed);
+            
+            // حساب الوقت الكلي المقدر للانتهاء (بالثواني)
+            const estimatedCompletionTime = (textLength / (botSpeed * 5 / 60));
+            
+            // عدد التحديثات المطلوبة
+            const updateCount = 20;
+            const updateInterval = estimatedCompletionTime / updateCount;
+            
+            let updateCounter = 0;
+            
+            const botInterval = setInterval(() => {
+                if (!gameState.raceStarted || gameState.raceFinished) {
+                    clearInterval(botInterval);
+                    return;
+                }
+                
+                updateCounter++;
+                const newProgress = (updateCounter / updateCount) * 100;
+                
+                bot.progress = Math.min(newProgress, 100);
+                updatePlayerProgress(bot);
+                
+                // إذا وصل للنهاية
+                if (bot.progress >= 100) {
+                    clearInterval(botInterval);
+                    bot.finishTime = new Date();
+                    bot.wpm = botSpeed;
+                    
+                    // التحقق مما إذا كان جميع اللاعبين قد انتهوا
+                    checkAllPlayersFinished();
+                }
+            }, updateInterval * 1000);
+        }
+        
+        // معالجة الكتابة في حقل النص
+        function handleTyping() {
+            if (!gameState.raceStarted || gameState.raceFinished) return;
+            sendProgress(progress);
+
+            const currentText = sampleTexts[gameState.currentTextIndex];
+            const typedText = elements.typingInput.value;
+            for (let i = 0; i < currentText.length; i++) {
+    const span = document.getElementById(`char-${i}`);
+    if (!span) continue;
+
+    if (typedText[i] == null) {
+        span.style.color = '#ffffff'; // اللون الافتراضي
+    } else if (typedText[i] === currentText[i]) {
+        span.style.color = 'var(--success)'; // أخضر
+    } else {
+        span.style.color = 'var(--error)'; // أحمر
+    }
+}
+
+            // حساب نسبة التطابق
+            const progress = calculateTextProgress(typedText, currentText);
+            
+            // تحديث تقدم اللاعب الحالي
+            gameState.currentPlayer.progress = progress;
+            updatePlayerProgress(gameState.currentPlayer);
+            
+            // إذا وصل للنهاية بشكل صحيح
+            if (progress >= 100) {
+                submitText();
+            }
+        }
+        
+        // حساب نسبة تقدم النص
+        function calculateTextProgress(typed, original) {
+            if (!typed) return 0;
+            
+            // حساب عدد الأحرف الصحيحة
+            let correctChars = 0;
+            for (let i = 0; i < typed.length && i < original.length; i++) {
+                if (typed[i] === original[i]) {
+                    correctChars++;
+                }
+            }
+            
+            return Math.floor((correctChars / original.length) * 100);
+        }
+        
+        // تحديث تقدم اللاعب على المسار
+        function updatePlayerProgress(player) {
+            const progressBar = document.querySelector(`#track-${player.id} .progress-bar`);
+            const carIcon = document.getElementById(`car-${player.id}`);
+            
+            if (progressBar && carIcon) {
+                progressBar.style.width = `${player.progress}%`;
+                carIcon.style.right = `${player.progress}%`;
+            }
+            
+            // تحديث ترتيب اللاعبين
+            updatePlayerRankings();
+        }
+        
+        // تحديث ترتيب اللاعبين
+        function updatePlayerRankings() {
+            // ترتيب اللاعبين حسب التقدم
+            const sortedPlayers = [...gameState.players].sort((a, b) => {
+                return b.progress - a.progress;
+            });
+            
+            // تحديث الترتيب في واجهة المستخدم
+            sortedPlayers.forEach((player, index) => {
+                const rankElement = document.getElementById(`rank-${player.id}`);
+                if (rankElement) {
+                    rankElement.textContent = `#${index + 1}`;
+                }
+            });
+        }
+        
+        // إرسال النص المكتوب
+        function submitText() {
+            if (!gameState.raceStarted || gameState.raceFinished) return;
+            
+            const currentText = sampleTexts[gameState.currentTextIndex];
+            const typedText = elements.typingInput.value;
+            
+            // التحقق من أن النص مكتمل
+            if (typedText.trim() === currentText.trim()) {
+                // اللاعب قد أكمل النص
+                gameState.currentPlayer.progress = 100;
+                gameState.currentPlayer.finishTime = new Date();
+                
+                // حساب سرعة الكتابة (كلمة في الدقيقة)
+                const wordCount = currentText.trim().split(/\s+/).length;
+                const timeInMinutes = (30 - gameState.timer) / 60;
+                gameState.currentPlayer.wpm = Math.round(wordCount / timeInMinutes);
+                
+                updatePlayerProgress(gameState.currentPlayer);
+                elements.typingInput.disabled = true;
+                
+                // التحقق مما إذا كان جميع اللاعبين قد انتهوا
+                checkAllPlayersFinished();
+            }
+        }
+        
+        // التحقق من انتهاء جميع اللاعبين
+        function checkAllPlayersFinished() {
+            const allFinished = gameState.players.every(player => player.progress >= 100 || player.finishTime);
+            
+            if (allFinished) {
+                clearInterval(gameState.countdownInterval);
+                
+                setTimeout(() => {
+                    if (gameState.currentTextIndex < sampleTexts.length - 1) {
+                        moveToNextText();
+                    } else {
+                        finishRace();
+                    }
+                }, 1500);
+            }
+        }
+        
+        // الانتقال إلى النص التالي
+        function moveToNextText() {
+            gameState.currentTextIndex++;
+            
+            // إعادة تعيين تقدم اللاعبين
+            gameState.players.forEach(player => {
+                player.progress = 0;
+                player.finishTime = null;
+            });
+            
+            // تحديث واجهة المستخدم
+            elements.progressIndicator.textContent = `${gameState.currentTextIndex + 1}/${sampleTexts.length}`;
+            renderColoredText(currentText);
+            elements.typingInput.value = '';
+            elements.typingInput.disabled = false;
+            elements.typingInput.focus();
+            
+            // تحديث مسارات السباق
+            createRaceTracks();
+            
+            // إعادة بدء العد التنازلي
+            startCountdown();
+            
+            // محاكاة تقدم اللاعبين الآليين
+            gameState.players.forEach(player => {
+                if (player.isBot) {
+                    simulateBotProgress(player);
+                }
+            });
+        }
+        
+        // إنهاء السباق وعرض النتائج
+        function finishRace() {
+            gameState.raceFinished = true;
+            
+            // حساب النتائج النهائية
+            const results = calculateFinalResults();
+            displayResults(results);
+            
+            toggleModal(elements.resultsModal, true);
+        }
+        
+        // حساب النتائج النهائية
+        function calculateFinalResults() {
+            // ترتيب اللاعبين حسب التقدم الإجمالي
+            return [...gameState.players].sort((a, b) => {
+                // أولاً حسب التقدم
+                if (b.progress !== a.progress) {
+                    return b.progress - a.progress;
+                }
+                // ثم حسب سرعة الكتابة
+                return b.wpm - a.wpm;
+            });
+        }
+        
+        // عرض النتائج
+        function displayResults(results) {
+            elements.resultsContainer.innerHTML = '';
+            
+            results.forEach((player, index) => {
+                const resultItem = document.createElement('div');
+                resultItem.style.padding = '10px';
+                resultItem.style.marginBottom = '10px';
+                resultItem.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+                resultItem.style.borderRadius = '10px';
+                resultItem.style.display = 'flex';
+                resultItem.style.justifyContent = 'space-between';
+                resultItem.style.alignItems = 'center';
+                
+                const rank = document.createElement('div');
+                rank.style.fontWeight = 'bold';
+                rank.style.color = index === 0 ? 'var(--text-highlight)' : 'var(--text-light)';
+                rank.textContent = `#${index + 1}`;
+                
+                const name = document.createElement('div');
+                name.textContent = player.name;
+                name.style.fontWeight = player.isCurrentUser ? 'bold' : 'normal';
+                
+                const stats = document.createElement('div');
+                stats.textContent = `${player.wpm} كلمة/دقيقة`;
+                
+                resultItem.appendChild(rank);
+                resultItem.appendChild(name);
+                resultItem.appendChild(stats);
+                
+                elements.resultsContainer.appendChild(resultItem);
+            });
+        }
+        
+        // مغادرة الغرفة
+        function leaveRoom() {
+            resetGame();
+            toggleModal(elements.waitingModal, false);
+            toggleModal(elements.loginModal, true);
+        }
+        
+        // الخروج من اللعبة
+        function quitGame() {
+            resetGame();
+            toggleModal(elements.resultsModal, false);
+            toggleModal(elements.loginModal, true);
+        }
+        
+        // إعادة اللعب
+        function resetAndPlayAgain() {
+            // إعادة تعيين بيانات السباق
+            gameState.currentTextIndex = 0;
+            gameState.raceFinished = false;
+            
+            // إعادة تعيين تقدم اللاعبين
+            gameState.players.forEach(player => {
+                player.progress = 0;
+                player.finishTime = null;
+                player.wpm = 0;
+            });
+            
+            toggleModal(elements.resultsModal, false);
+            startRace();
+        }
+        
+        // إعادة تعيين اللعبة
+        function resetGame() {
+            gameState = {
+                currentPlayer: null,
+                players: [],
+                roomCode: generateRoomCode(),
+                currentTextIndex: 0,
+                timer: 30,
+                raceStarted: false,
+                raceFinished: false,
+                countdownInterval: null
+            };
+            
+            elements.roomCode.textContent = gameState.roomCode;
+            elements.waitingRoomCode.textContent = gameState.roomCode;
+            
+            clearInterval(gameState.countdownInterval);
+            
+            // إعادة تعيين واجهة المستخدم
+            elements.playersContainer.innerHTML = '';
+            elements.waitingPlayers.innerHTML = '';
+            elements.raceTrack.innerHTML = '';
+            elements.typingInput.value = '';
+            elements.typingInput.disabled = true;
+            
+            // إعادة تمكين أزرار تسجيل الدخول
+            elements.createRoomBtn.disabled = false;
+            elements.joinRandomBtn.disabled = false;
+            elements.joinRoomBtn.disabled = false;
+        }
+        
+        // تبديل حالة النافذة المنبثقة
+        function toggleModal(modal, show) {
+            if (show) {
+                modal.classList.add('active');
+            } else {
+                modal.classList.remove('active');
+            }
+        }
+        
+        // تحديث قائمة اللاعبين
+        function updatePlayersList() {
+            // تحديث قائمة اللاعبين في شاشة الانتظار
+            elements.waitingPlayers.innerHTML = '';
+            elements.playersContainer.innerHTML = '';
+            
+            gameState.players.forEach(player => {
+                // إضافة اللاعب إلى قائمة الانتظار
+                const waitingPlayerEl = document.createElement('div');
+                waitingPlayerEl.className = 'player';
+                if (player.isCurrentUser) {
+                    waitingPlayerEl.classList.add('current-player');
+                }
+                waitingPlayerEl.textContent = player.name;
+                elements.waitingPlayers.appendChild(waitingPlayerEl);
+                
+                // إضافة اللاعب إلى قائمة اللاعبين في الشاشة الرئيسية
+                const playerEl = document.createElement('div');
+                playerEl.className = 'player';
+                if (player.isCurrentUser) {
+                    playerEl.classList.add('current-player');
+                }
+                playerEl.textContent = player.name;
+                elements.playersContainer.appendChild(playerEl);
+            });
+        }
+        function renderColoredText(text) {
+    const display = document.getElementById('text-display');
+    display.innerHTML = text
+        .split('')
+        .map((char, index) => `<span id="char-${index}">${char}</span>`)
+        .join('');
+}
+    const text = "هذا هو النص الذي يجب كتابته بشكل صحيح"; // النص الهدف
+    const input = document.querySelector('.typing-input');
+    const display = document.getElementById('text-display');
+
+    // عرض النص الأصلي مفصّلًا عند البداية
+    function renderText() {
+        display.innerHTML = text
+            .split('')
+            .map((char, index) => `<span id="char-${index}">${char}</span>`)
+            .join('');
+    }
+
+    input.addEventListener('input', () => {
+        const userInput = input.value;
+
+        for (let i = 0; i < text.length; i++) {
+            const charSpan = document.getElementById(`char-${i}`);
+            const char = text[i];
+            const typedChar = userInput[i];
+
+            if (typedChar == null) {
+                charSpan.style.color = '#ffffff'; // افتراضي
+            } else if (typedChar === char) {
+                charSpan.style.color = '#4caf50'; // أخضر
+            } else {
+                charSpan.style.color = '#f44336'; // أحمر
+            }
+        }
+    });
+
+    renderText();
+
+
+        // توليد معرف فريد
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+        const express = require('express');
+const http = require('http');
+const { Server } = require("socket.io");
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
+let rooms = {}; // كل غرفة تحتوي على لاعبين
+
+io.on('connection', (socket) => {
+    console.log("✅ مستخدم متصل:", socket.id);
+
+    socket.on('join-room', ({ roomCode, username }) => {
+        socket.join(roomCode);
+
+        if (!rooms[roomCode]) rooms[roomCode] = [];
+
+        rooms[roomCode].push({ id: socket.id, name: username, progress: 0 });
+        console.log(`🚪 ${username} دخل الغرفة ${roomCode}`);
+
+        io.to(roomCode).emit('update-players', rooms[roomCode]);
+    });
+
+    socket.on('progress-update', ({ roomCode, progress }) => {
+        const player = rooms[roomCode]?.find(p => p.id === socket.id);
+        if (player) player.progress = progress;
+        socket.to(roomCode).emit('player-progress', { id: socket.id, progress });
+    });
+
+    socket.on('disconnect', () => {
+        for (const room in rooms) {
+            rooms[room] = rooms[room].filter(p => p.id !== socket.id);
+            io.to(room).emit('update-players', rooms[room]);
+        }
+    });
+});
+
+server.listen(3000, () => {
+    console.log('🚀 السيرفر يعمل على http://localhost:3000');
+});
+const socket = io("http://localhost:3000"); // غيّر الرابط عند رفعه
+
+let roomCode = gameState.roomCode;
+let username = gameState.currentPlayer.name;
+
+socket.emit('join-room', { roomCode, username });
+
+socket.on('update-players', (players) => {
+    console.log("✅ اللاعبين:", players);
+    // حدث الواجهة كما تريد
+});
+
+socket.on('player-progress', ({ id, progress }) => {
+    const player = gameState.players.find(p => p.id === id);
+    if (player) {
+        player.progress = progress;
+        updatePlayerProgress(player);
+    }
+});
+
+// لإرسال التقدم
+function sendProgress(progress) {
+    socket.emit('progress-update', { roomCode, progress });
+}
+
+    </script>
+</body>
+</html>
